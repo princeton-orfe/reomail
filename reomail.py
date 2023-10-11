@@ -14,11 +14,11 @@ scopes = ['https://graph.microsoft.com/Mail.Send']
 
 # Create argument parser
 parser = argparse.ArgumentParser(description='Send an HTML email using O365 with optional recipients from CSV files.')
-parser.add_argument('--tofile', help='CSV file containing "to" email addresses')
-parser.add_argument('--bccfile', help='CSV file containing "bcc" email addresses')
-parser.add_argument('--subject', help='Subject of the email')
-parser.add_argument('--bodyfile', default='body.html', help='HTML file containing the email body content, default is body.html')
-parser.add_argument('--merge', action='store_true', help="Uses the CSV tofile or address list to send one message per recipient.  Causes bcc addresses or bccfile to be ignored.")
+parser.add_argument('--tofile', '-t', help='CSV file containing "to" email addresses. Must contain a header row specifying the email column.')
+parser.add_argument('--bccfile', '-b', help='CSV file containing "bcc" email addresses.  Must contain a header row specifying the email column.')
+parser.add_argument('--subject', '-s', help='Subject of the email')
+parser.add_argument('--bodyfile', '-o', default='body.html', help='HTML file containing the email body content, default is body.html')
+parser.add_argument('--merge', '-m', action='store_true', help="Uses the CSV tofile or address list to send one message per recipient.  Causes bcc addresses or bccfile to be ignored.")
 args = parser.parse_args()
 
 try:
@@ -41,10 +41,12 @@ if not subject:
 def read_emails_from_csv(file_path):
     emails = []
     with open(file_path, 'r') as csv_file:
-        reader = csv.reader(csv_file)
+        reader = csv.DictReader(csv_file)
+        if 'email' not in reader.fieldnames:
+            raise Exception("The CSV file requires a header row with at least one column specifying 'email'.")
         for row in reader:
-            if row:
-                emails.append(row[0].strip())
+            if 'email' in row:
+                emails.append(row['email'].strip())
     return emails
 
 # Parse CSV files for "to" and "bcc" recipients if provided
@@ -64,9 +66,11 @@ if not to_emails:
     to_input = input('Enter "to" email addresses (comma-separated, max 300):')
     to_emails = [email.strip() for email in to_input.split(',')]
 
-if not bcc_emails:
+if not bcc_emails and not args.merge:
     bcc_input = input('Enter "bcc" email addresses (comma-separated, max 300):')
     bcc_emails = [email.strip() for email in bcc_input.split(',')]
+else:
+    print("Warning: bcc will be ignored using merge mode.")
 
 if len(to_emails) + len(bcc_emails) > 300:
     print('Total recipients (to + bcc) exceeds 300. Please reduce the number of recipients.')
@@ -90,24 +94,48 @@ print('Authenticated')
 #             print('Authentication failed.')
 #             sys.exit(1)
 
-# Create a new message
-m = account.new_message()
-m.to.add(to_emails)
-m.bcc.add(bcc_emails)
-m.subject = subject
-m.body = msg_body_content
+# Check if merge mode is enabled
+if args.merge:
+    # In merge mode, don't use BCC and send individual messages to each "to" recipient
+    for email in to_emails:
+        m = account.new_message()
+        m.to.add(email)
+        m.subject = subject
+        m.body = msg_body_content
 
-attachments = ['banner1.jpg', 'banner2.jpg', 'banner3.jpg', 'pu-logo.png', 'orfe.png']
+        attachments = ['banner1.jpg', 'banner2.jpg', 'banner3.jpg', 'pu-logo.png', 'orfe.png']
 
-# Add attachments with inline properties and content IDs
-for attachment_name in attachments:
-    m.attachments.add(attachment_name)
-    attachment = m.attachments[-1] # Get the last added attachment
-    attachment.is_inline = True
-    attachment.content_id = attachment_name
+        # Add attachments with inline properties and content IDs
+        for attachment_name in attachments:
+            m.attachments.add(attachment_name)
+            attachment = m.attachments[-1] # Get the last added attachment
+            attachment.is_inline = True
+            attachment.content_id = attachment_name
 
-# Send the message
-if not m.send():
-    print('Message sending failed.')
+        # Send the individual message
+        if not m.send():
+            print(f'Message sending failed for {email}.')
+        else:
+            print(f'Message sent successfully to {email}.')
 else:
-    print('Message sent successfully.')
+    # If not in merge mode, use the original code to handle both "to" and "bcc"
+    m = account.new_message()
+    m.to.add(to_emails)
+    m.bcc.add(bcc_emails)
+    m.subject = subject
+    m.body = msg_body_content
+
+    attachments = ['banner1.jpg', 'banner2.jpg', 'banner3.jpg', 'pu-logo.png', 'orfe.png']
+
+    # Add attachments with inline properties and content IDs
+    for attachment_name in attachments:
+        m.attachments.add(attachment_name)
+        attachment = m.attachments[-1] # Get the last added attachment
+        attachment.is_inline = True
+        attachment.content_id = attachment_name
+
+    # Send the message
+    if not m.send():
+        print('Message sending failed.')
+    else:
+        print('Message sent successfully.')
