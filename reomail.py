@@ -40,23 +40,33 @@ if not subject:
 # Function to read emails from a CSV file
 def read_emails_from_csv(file_path):
     emails = []
+    first_names = []
+    last_names = []
+    
     with open(file_path, 'r') as csv_file:
         reader = csv.DictReader(csv_file)
         if 'email' not in reader.fieldnames:
             raise Exception("The CSV file requires a header row with at least one column specifying 'email'.")
+        
         for row in reader:
-            if 'email' in row:
-                emails.append(row['email'].strip())
-    return emails
+            email = row.get('email', '').strip()
+            first_name = row.get('first_name', '').strip()
+            last_name = row.get('last_name', '').strip()
+            
+            emails.append(email)
+            first_names.append(first_name)
+            last_names.append(last_name)
+    
+    return emails, first_names, last_names
 
 # Parse CSV files for "to" and "bcc" recipients if provided
 to_emails = []
 bcc_emails = []
 
 if args.tofile:
-    to_emails = read_emails_from_csv(args.tofile)
+    to_emails = read_emails_from_csv(args.tofile)[0]
 if args.bccfile:
-    bcc_emails = read_emails_from_csv(args.bccfile)
+    bcc_emails = read_emails_from_csv(args.bccfile)[0]
 
 
 
