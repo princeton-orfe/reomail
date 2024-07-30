@@ -6,7 +6,7 @@ The tool is designed to connect directly to a Princeton email account to send th
 
 ## Authentication
 
-AUthentication requires an App registration via Microsoft Azure with the following API permissions.
+Authentication requires an App registration via Microsoft Azure with the following API permissions for authorization.
 
 * Mail.Read
 * Mail.Send
